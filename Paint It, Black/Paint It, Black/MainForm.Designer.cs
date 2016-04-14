@@ -38,7 +38,7 @@
             this.quadrangleButton = new System.Windows.Forms.Button();
             this.triangleButton = new System.Windows.Forms.Button();
             this.segmentButton = new System.Windows.Forms.Button();
-            this.drawingPanel = new System.Windows.Forms.Panel();
+            this.canvas = new System.Windows.Forms.PictureBox();
             this.colorDialog = new System.Windows.Forms.ColorDialog();
             this.folderBrowserDialog = new System.Windows.Forms.FolderBrowserDialog();
             this.menuStrip.SuspendLayout();
@@ -46,6 +46,7 @@
             this.splitContainer.Panel1.SuspendLayout();
             this.splitContainer.Panel2.SuspendLayout();
             this.splitContainer.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.canvas)).BeginInit();
             this.SuspendLayout();
             // 
             // menuStrip
@@ -70,14 +71,14 @@
             // newToolStripMenuItem
             // 
             this.newToolStripMenuItem.Name = "newToolStripMenuItem";
-            this.newToolStripMenuItem.Size = new System.Drawing.Size(152, 22);
+            this.newToolStripMenuItem.Size = new System.Drawing.Size(98, 22);
             this.newToolStripMenuItem.Text = "New";
             this.newToolStripMenuItem.Click += new System.EventHandler(this.newToolStripMenuItem_Click);
             // 
             // saveToolStripMenuItem
             // 
             this.saveToolStripMenuItem.Name = "saveToolStripMenuItem";
-            this.saveToolStripMenuItem.Size = new System.Drawing.Size(152, 22);
+            this.saveToolStripMenuItem.Size = new System.Drawing.Size(98, 22);
             this.saveToolStripMenuItem.Text = "Save";
             this.saveToolStripMenuItem.Click += new System.EventHandler(this.saveToolStripMenuItem_Click);
             // 
@@ -104,7 +105,7 @@
             // 
             // splitContainer.Panel2
             // 
-            this.splitContainer.Panel2.Controls.Add(this.drawingPanel);
+            this.splitContainer.Panel2.Controls.Add(this.canvas);
             this.splitContainer.Size = new System.Drawing.Size(759, 395);
             this.splitContainer.SplitterDistance = 349;
             this.splitContainer.TabIndex = 1;
@@ -167,10 +168,10 @@
             // colorPickerButton
             // 
             this.colorPickerButton.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
-            this.colorPickerButton.BackColor = System.Drawing.SystemColors.ControlText;
+            this.colorPickerButton.BackColor = System.Drawing.Color.Black;
             this.colorPickerButton.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.colorPickerButton.ForeColor = System.Drawing.Color.White;
-            this.colorPickerButton.Location = new System.Drawing.Point(3, 339);
+            this.colorPickerButton.ForeColor = System.Drawing.Color.WhiteSmoke;
+            this.colorPickerButton.Location = new System.Drawing.Point(6, 339);
             this.colorPickerButton.Name = "colorPickerButton";
             this.colorPickerButton.Size = new System.Drawing.Size(134, 38);
             this.colorPickerButton.TabIndex = 1;
@@ -235,16 +236,17 @@
             this.segmentButton.Text = "Segment";
             this.segmentButton.UseVisualStyleBackColor = false;
             // 
-            // drawingPanel
+            // canvas
             // 
-            this.drawingPanel.BackColor = System.Drawing.SystemColors.ControlLightLight;
-            this.drawingPanel.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D;
-            this.drawingPanel.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.drawingPanel.Location = new System.Drawing.Point(0, 0);
-            this.drawingPanel.Name = "drawingPanel";
-            this.drawingPanel.Size = new System.Drawing.Size(406, 395);
-            this.drawingPanel.TabIndex = 0;
-            this.drawingPanel.Paint += new System.Windows.Forms.PaintEventHandler(this.drawingPanel_Paint);
+            this.canvas.BackColor = System.Drawing.SystemColors.ControlLightLight;
+            this.canvas.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D;
+            this.canvas.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.canvas.Location = new System.Drawing.Point(0, 0);
+            this.canvas.Name = "canvas";
+            this.canvas.Size = new System.Drawing.Size(406, 395);
+            this.canvas.SizeMode = System.Windows.Forms.PictureBoxSizeMode.StretchImage;
+            this.canvas.TabIndex = 0;
+            this.canvas.TabStop = false;
             // 
             // folderBrowserDialog
             // 
@@ -254,10 +256,10 @@
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(96F, 96F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Dpi;
+            this.AutoValidate = System.Windows.Forms.AutoValidate.EnableAllowFocusChange;
             this.ClientSize = new System.Drawing.Size(783, 434);
             this.Controls.Add(this.splitContainer);
             this.Controls.Add(this.menuStrip);
-            this.DoubleBuffered = true;
             this.MainMenuStrip = this.menuStrip;
             this.MinimumSize = new System.Drawing.Size(700, 380);
             this.Name = "MainForm";
@@ -269,6 +271,7 @@
             this.splitContainer.Panel2.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer)).EndInit();
             this.splitContainer.ResumeLayout(false);
+            ((System.ComponentModel.ISupportInitialize)(this.canvas)).EndInit();
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -281,7 +284,6 @@
         private System.Windows.Forms.ToolStripMenuItem newToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem saveToolStripMenuItem;
         private System.Windows.Forms.SplitContainer splitContainer;
-        private System.Windows.Forms.Panel drawingPanel;
         private System.Windows.Forms.Label label3;
         private System.Windows.Forms.Label label2;
         private System.Windows.Forms.Label label1;
@@ -294,6 +296,7 @@
         private System.Windows.Forms.ColorDialog colorDialog;
         private System.Windows.Forms.Label colorButtonExplainingLabel;
         private System.Windows.Forms.FolderBrowserDialog folderBrowserDialog;
+        private System.Windows.Forms.PictureBox canvas;
     }
 }
 

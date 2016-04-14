@@ -41,39 +41,40 @@ namespace Paint_It__Black {
             //add controls to the lists, and by the way add event handlers to the buttons:
             foreach (Control c in splitContainer.Panel1.Controls) {
                 if (c is Label && !c.Equals(colorButtonExplainingLabel)) labels.Add(c as Label);
-                if (c is Button && !c.Equals(colorPickerButton)) {
+                if (c is Button && !(c.Tag as string).Equals("5")) {
                     buttons.Add(c as Button);
                     c.Click += button_Click;
                 }
             }
-            drawingPanel.Click += drawingPanel_Click;
-            drawingPanel.MouseMove += drawingPanel_MouseMove;
-            drawingPanel.MouseDown += drawingPanel_MouseDown;
-            drawingPanel.MouseUp += drawingPanel_MouseUp;
-            drawingPanel.MouseDoubleClick += drawingPanel_MouseDoubleClick;
+            canvas.Click += Canvas_Click;
+            canvas.MouseMove += Canvas_MouseMove;
+            canvas.MouseDown += Canvas_MouseDown;
+            canvas.MouseUp += Canvas_MouseUp;
+            canvas.MouseDoubleClick += Canvas_MouseDoubleClick;
+            canvas.Paint += Canvas_Paint;
 
-            KeyDown += KeyDown_Handler;
+            KeyUp += KeyUp_Handler;
+
         }
 
-        private void KeyDown_Handler(object sender, KeyEventArgs e) {
+        private void KeyUp_Handler(object sender, KeyEventArgs e) {
             if (moving) {
-                switch (e.KeyCode) {
+                switch (e.KeyData) {
                     case Keys.Enter:
-                        tempShape.HasBorder = false;
-                        moving = false;
+                        StopMoving();
                         break;
 
-                    case Keys.Down:
+                    case Keys.Up:
                         for (int i = 0; i < tempShape.Vertices.Count; i++) {
-                            Point v = tempShape.Vertices[i];
+                            Point v = new Point(tempShape.Vertices[i].X, tempShape.Vertices[i].Y);
                             v.Y -= 5;
                             tempShape.Vertices[i] = v;
                         }
                         break;
 
-                    case Keys.Up:
+                    case Keys.Down:
                         for (int i = 0; i < tempShape.Vertices.Count; i++) {
-                            Point v = tempShape.Vertices[i];
+                            Point v = new Point(tempShape.Vertices[i].X, tempShape.Vertices[i].Y);
                             v.Y += 5;
                             tempShape.Vertices[i] = v;
                         }
@@ -81,7 +82,7 @@ namespace Paint_It__Black {
 
                     case Keys.Left:
                         for (int i = 0; i < tempShape.Vertices.Count; i++) {
-                            Point v = tempShape.Vertices[i];
+                            Point v = new Point(tempShape.Vertices[i].X, tempShape.Vertices[i].Y);
                             v.X -= 5;
                             tempShape.Vertices[i] = v;
                         }
@@ -89,14 +90,14 @@ namespace Paint_It__Black {
 
                     case Keys.Right:
                         for (int i = 0; i < tempShape.Vertices.Count; i++) {
-                            Point v = tempShape.Vertices[i];
+                            Point v = new Point(tempShape.Vertices[i].X, tempShape.Vertices[i].Y);
                             v.X += 5;
                             tempShape.Vertices[i] = v;
                         }
                         break;
                 }
             }
-            drawingPanel.Invalidate();
+            canvas.Refresh();
 
         }
 
@@ -108,26 +109,30 @@ namespace Paint_It__Black {
             label.Text = "Click " + clickRequirements[selectedShape] + " more points to draw a " + shapeNames[selectedShape];
         }
 
-        private void colorPickerButton_Click(object sender, EventArgs e) {
-            colorDialog.ShowDialog();
-            colorPickerButton.BackColor = colorDialog.Color;
-        }
-
-        private void drawingPanel_Click(object sender, EventArgs e) {
+        private void Canvas_Click(object sender, EventArgs e) {
             MouseEventArgs args = e as MouseEventArgs;
             if (selectedShape > 0) {
                 clickedPoints.Add(args.Location);
                 UpdateLabel();
-                if (clickedPoints.Count == clickRequirements[selectedShape]) DrawShape();
+                if (clickedPoints.Count == clickRequirements[selectedShape]) CreateShape();
             }
             if (moving) {
                 GraphicsPath gp = new GraphicsPath();
-                gp.AddPolygon(tempShape.Vertices.ToArray());
-                if (gp.IsVisible(args.Location)) {
-                    moving = false;
-                    tempShape.HasBorder = false;
+                if (tempShape.Vertices.Count > 2) gp.AddPolygon(tempShape.Vertices.ToArray());
+                else gp.AddLine(tempShape.Vertices[0], tempShape.Vertices[1]);
+                if (gp.IsVisible(args.Location) || gp.IsOutlineVisible(args.Location, new Pen(Color.Black, 3))) {
+                    StopMoving();
                 }
             }
+        }
+
+        private void StopMoving() {
+            moving = false;
+            tempShape.HasBorder = false;
+            shapes.Remove(tempShape);
+            shapes.Add(tempShape);
+            foreach (var c in splitContainer.Panel1.Controls) 
+                if (c is Button) (c as Button).Enabled = true;
         }
 
         private void UpdateLabel() {
@@ -135,38 +140,39 @@ namespace Paint_It__Black {
             label.Text = "Click " + (clickRequirements[selectedShape] - clickedPoints.Count) + " more points to draw a " + shapeNames[selectedShape] + ".";
         }
 
-        private void DrawShape() {
+        private void CreateShape() {
             Shape s = new Shape(new List<Point>(clickedPoints), colorDialog.Color);
             shapes.Add(s);
-            drawingPanel.Refresh();
+            canvas.Invalidate();
             foreach (var b in buttons) b.Enabled = true;
             foreach (var l in labels) l.Visible = false;
             clickedPoints.Clear();
             selectedShape = 0;
         }
 
-        private void drawingPanel_Paint(object sender, PaintEventArgs e) {
-            Graphics g = drawingPanel.CreateGraphics();
-            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        private Bitmap GetBitmap() {
+            Bitmap theBitmap = new Bitmap(canvas.Width, canvas.Height);
+            Graphics g = Graphics.FromImage(theBitmap);
+            g.SmoothingMode = SmoothingMode.AntiAlias;
             foreach (var shape in shapes) {
-                if (!shape.HasBorder) {
-                    Pen pen = new Pen(shape.Color, 2);
+                Pen pen = new Pen(shape.Color, 2);
+                g.DrawPolygon(pen, shape.Vertices.ToArray());
+                g.FillPolygon(pen.Brush, shape.Vertices.ToArray());
+                pen.Dispose();
+                if (shape.HasBorder) {
+                    pen = new Pen(Color.Yellow, 2);
                     g.DrawPolygon(pen, shape.Vertices.ToArray());
-                    g.FillPolygon(pen.Brush, shape.Vertices.ToArray());
-                    pen.Dispose();
-                } else {
-                    Pen pen = new Pen(Color.Yellow, 5);
-                    g.DrawPolygon(pen, shape.Vertices.ToArray());
-                    pen.Color = shape.Color;
-                    g.FillPolygon(pen.Brush, shape.Vertices.ToArray());
-                    pen.Dispose();
                 }
-
             }
             g.Dispose();
+            return theBitmap;
         }
 
-        private void drawingPanel_MouseDown(object sender, MouseEventArgs e) {
+        private void Canvas_Paint(object sender, PaintEventArgs e) {
+            canvas.BackgroundImage = GetBitmap();
+        }
+
+        private void Canvas_MouseDown(object sender, MouseEventArgs e) {
             if (selectedShape == 0) {
                 foreach (var shape in shapes) {
                     for (int i = 0; i < shape.Vertices.Count; i++) {
@@ -202,42 +208,41 @@ namespace Paint_It__Black {
             return false;
         }
 
-        private void drawingPanel_MouseMove(object sender, MouseEventArgs e) {
+        private void Canvas_MouseMove(object sender, MouseEventArgs e) {
             if (selectedShape == 0 && tempVertexIndex != -1) {
                 tempShape.Vertices[tempVertexIndex] = new Point(e.X, e.Y);
-                drawingPanel.Refresh();
+                canvas.Refresh();
             }
         }
 
-        private void drawingPanel_MouseUp(object sender, MouseEventArgs e) {
+        private void Canvas_MouseUp(object sender, MouseEventArgs e) {
             if (selectedShape == 0 && tempVertexIndex != -1) {
                 tempVertexIndex = -1;
                 shapes.Remove(tempShape);
                 shapes.Add(tempShape);
-                drawingPanel.Invalidate();
+                canvas.Refresh();
             }
         }
 
-        private void drawingPanel_MouseDoubleClick(object sender, MouseEventArgs e) {
+        private void Canvas_MouseDoubleClick(object sender, MouseEventArgs e) {
             if (selectedShape == 0 && tempVertexIndex == -1 && !moving) {
-                foreach (var shape in shapes) {
+                for (int i = shapes.Count - 1; i >= 0; i--) {
+                    Shape shape = shapes[i];
+                    Point p = new Point(e.X, e.Y);
                     GraphicsPath gp = new GraphicsPath();
                     if (shape.Vertices.Count > 2) gp.AddPolygon(shape.Vertices.ToArray());
                     else gp.AddLine(shape.Vertices[0], shape.Vertices[1]);
-                    if (gp.IsVisible(e.Location)) {
+                    if (gp.IsVisible(p) || gp.IsOutlineVisible(p, new Pen(Color.Black, 3))) {
                         shape.HasBorder = true;
                         moving = true;
                         tempShape = shape;
-                        drawingPanel.Invalidate();
                         foreach (var c in splitContainer.Panel1.Controls)
                             if (c is Button) (c as Button).Enabled = false;
+                        break;
                     }
                 }
-            }
-            if (moving) {
-                tempShape.HasBorder = false;
-                moving = false;
-            }
+            } else if (moving) StopMoving();
+            canvas.Refresh();
         }
 
         private void newToolStripMenuItem_Click(object sender, EventArgs e) {
@@ -249,26 +254,19 @@ namespace Paint_It__Black {
             selectedShape = 0;
             colorDialog.Color = Color.Black;
             colorPickerButton.BackColor = colorDialog.Color;
-            drawingPanel.Invalidate();
+            canvas.Refresh();
         }
 
         private void saveToolStripMenuItem_Click(object sender, EventArgs e) {
             //show the dialog, get the correct path:
             folderBrowserDialog.ShowDialog();
             string path = folderBrowserDialog.SelectedPath;
-            //make a bitmap, draw on it just as you would do on the drawingPanel:
-            Bitmap bitmap = new Bitmap(drawingPanel.Width, drawingPanel.Height);
-            Graphics g = Graphics.FromImage(bitmap);
-            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-            foreach (var shape in shapes) {
-                Pen pen = new Pen(shape.Color, 2);
-                g.DrawPolygon(pen, shape.Vertices.ToArray());
-                if (shape.Vertices.Count > 2) g.FillPolygon(pen.Brush, shape.Vertices.ToArray());
-                pen.Dispose();
-            }
-            g.Dispose();
+            GetBitmap().Save(path + "/drawing.bmp");
+        }
 
-            bitmap.Save(path + "/drawing.bmp");
+        private void colorPickerButton_Click(object sender, EventArgs e) {
+            DialogResult result = colorDialog.ShowDialog();
+            if (result == DialogResult.OK) colorPickerButton.BackColor = colorDialog.Color;
         }
     }
 }
