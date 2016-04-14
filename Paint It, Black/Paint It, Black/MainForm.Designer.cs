@@ -28,6 +28,7 @@
             this.newToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.saveToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.splitContainer = new System.Windows.Forms.SplitContainer();
+            this.colorButtonExplainingLabel = new System.Windows.Forms.Label();
             this.label3 = new System.Windows.Forms.Label();
             this.label2 = new System.Windows.Forms.Label();
             this.label1 = new System.Windows.Forms.Label();
@@ -39,7 +40,7 @@
             this.segmentButton = new System.Windows.Forms.Button();
             this.drawingPanel = new System.Windows.Forms.Panel();
             this.colorDialog = new System.Windows.Forms.ColorDialog();
-            this.colorButtonExplainingLabel = new System.Windows.Forms.Label();
+            this.folderBrowserDialog = new System.Windows.Forms.FolderBrowserDialog();
             this.menuStrip.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer)).BeginInit();
             this.splitContainer.Panel1.SuspendLayout();
@@ -78,6 +79,7 @@
             this.saveToolStripMenuItem.Name = "saveToolStripMenuItem";
             this.saveToolStripMenuItem.Size = new System.Drawing.Size(152, 22);
             this.saveToolStripMenuItem.Text = "Save";
+            this.saveToolStripMenuItem.Click += new System.EventHandler(this.saveToolStripMenuItem_Click);
             // 
             // splitContainer
             // 
@@ -106,6 +108,17 @@
             this.splitContainer.Size = new System.Drawing.Size(759, 395);
             this.splitContainer.SplitterDistance = 349;
             this.splitContainer.TabIndex = 1;
+            // 
+            // colorButtonExplainingLabel
+            // 
+            this.colorButtonExplainingLabel.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
+            this.colorButtonExplainingLabel.AutoSize = true;
+            this.colorButtonExplainingLabel.Location = new System.Drawing.Point(3, 323);
+            this.colorButtonExplainingLabel.Name = "colorButtonExplainingLabel";
+            this.colorButtonExplainingLabel.Size = new System.Drawing.Size(119, 13);
+            this.colorButtonExplainingLabel.TabIndex = 3;
+            this.colorButtonExplainingLabel.Tag = "nothing to see here";
+            this.colorButtonExplainingLabel.Text = "Color of the new shape:";
             // 
             // label3
             // 
@@ -161,6 +174,7 @@
             this.colorPickerButton.Name = "colorPickerButton";
             this.colorPickerButton.Size = new System.Drawing.Size(134, 38);
             this.colorPickerButton.TabIndex = 1;
+            this.colorPickerButton.TabStop = false;
             this.colorPickerButton.Tag = "5";
             this.colorPickerButton.UseVisualStyleBackColor = false;
             this.colorPickerButton.Click += new System.EventHandler(this.colorPickerButton_Click);
@@ -174,6 +188,7 @@
             this.hexButton.Name = "hexButton";
             this.hexButton.Size = new System.Drawing.Size(117, 36);
             this.hexButton.TabIndex = 0;
+            this.hexButton.TabStop = false;
             this.hexButton.Tag = "4";
             this.hexButton.Text = "Hexagon";
             this.hexButton.UseVisualStyleBackColor = false;
@@ -187,6 +202,7 @@
             this.quadrangleButton.Name = "quadrangleButton";
             this.quadrangleButton.Size = new System.Drawing.Size(117, 36);
             this.quadrangleButton.TabIndex = 0;
+            this.quadrangleButton.TabStop = false;
             this.quadrangleButton.Tag = "3";
             this.quadrangleButton.Text = "Quadrangle";
             this.quadrangleButton.UseVisualStyleBackColor = false;
@@ -200,6 +216,7 @@
             this.triangleButton.Name = "triangleButton";
             this.triangleButton.Size = new System.Drawing.Size(117, 36);
             this.triangleButton.TabIndex = 0;
+            this.triangleButton.TabStop = false;
             this.triangleButton.Tag = "2";
             this.triangleButton.Text = "Triangle";
             this.triangleButton.UseVisualStyleBackColor = false;
@@ -213,6 +230,7 @@
             this.segmentButton.Name = "segmentButton";
             this.segmentButton.Size = new System.Drawing.Size(117, 36);
             this.segmentButton.TabIndex = 0;
+            this.segmentButton.TabStop = false;
             this.segmentButton.Tag = "1";
             this.segmentButton.Text = "Segment";
             this.segmentButton.UseVisualStyleBackColor = false;
@@ -228,16 +246,9 @@
             this.drawingPanel.TabIndex = 0;
             this.drawingPanel.Paint += new System.Windows.Forms.PaintEventHandler(this.drawingPanel_Paint);
             // 
-            // colorButtonExplainingLabel
+            // folderBrowserDialog
             // 
-            this.colorButtonExplainingLabel.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
-            this.colorButtonExplainingLabel.AutoSize = true;
-            this.colorButtonExplainingLabel.Location = new System.Drawing.Point(3, 323);
-            this.colorButtonExplainingLabel.Name = "colorButtonExplainingLabel";
-            this.colorButtonExplainingLabel.Size = new System.Drawing.Size(119, 13);
-            this.colorButtonExplainingLabel.TabIndex = 3;
-            this.colorButtonExplainingLabel.Tag = "nothing to see here";
-            this.colorButtonExplainingLabel.Text = "Color of the new shape:";
+            this.folderBrowserDialog.Description = "Choose a folder. A file drawing.bmp will be saved there.";
             // 
             // MainForm
             // 
@@ -246,6 +257,7 @@
             this.ClientSize = new System.Drawing.Size(783, 434);
             this.Controls.Add(this.splitContainer);
             this.Controls.Add(this.menuStrip);
+            this.DoubleBuffered = true;
             this.MainMenuStrip = this.menuStrip;
             this.MinimumSize = new System.Drawing.Size(700, 380);
             this.Name = "MainForm";
@@ -281,6 +293,7 @@
         private System.Windows.Forms.Button segmentButton;
         private System.Windows.Forms.ColorDialog colorDialog;
         private System.Windows.Forms.Label colorButtonExplainingLabel;
+        private System.Windows.Forms.FolderBrowserDialog folderBrowserDialog;
     }
 }
 
