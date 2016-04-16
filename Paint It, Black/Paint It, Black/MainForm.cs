@@ -22,6 +22,7 @@ namespace Paint_It__Black {
         private int tempVertexIndex = -1;
         private Shape tempShape;
         private bool moving;
+        private bool isUpToDate = true;
 
         private class Shape {
 
@@ -47,11 +48,11 @@ namespace Paint_It__Black {
                 }
             }
             canvas.Click += Canvas_Click;
+            canvas.Paint += Canvas_Paint;
             canvas.MouseMove += Canvas_MouseMove;
             canvas.MouseDown += Canvas_MouseDown;
             canvas.MouseUp += Canvas_MouseUp;
             canvas.MouseDoubleClick += Canvas_MouseDoubleClick;
-            canvas.Paint += Canvas_Paint;
 
             KeyUp += KeyUp_Handler;
 
@@ -97,7 +98,7 @@ namespace Paint_It__Black {
                         break;
                 }
             }
-            canvas.Refresh();
+            isUpToDate = false; canvas.Refresh();
 
         }
 
@@ -131,8 +132,9 @@ namespace Paint_It__Black {
             tempShape.HasBorder = false;
             shapes.Remove(tempShape);
             shapes.Add(tempShape);
-            foreach (var c in splitContainer.Panel1.Controls) 
+            foreach (var c in splitContainer.Panel1.Controls)
                 if (c is Button) (c as Button).Enabled = true;
+            isUpToDate = false; canvas.Refresh();
         }
 
         private void UpdateLabel() {
@@ -143,7 +145,7 @@ namespace Paint_It__Black {
         private void CreateShape() {
             Shape s = new Shape(new List<Point>(clickedPoints), colorDialog.Color);
             shapes.Add(s);
-            canvas.Invalidate();
+            isUpToDate = false; canvas.Refresh();
             foreach (var b in buttons) b.Enabled = true;
             foreach (var l in labels) l.Visible = false;
             clickedPoints.Clear();
@@ -169,7 +171,10 @@ namespace Paint_It__Black {
         }
 
         private void Canvas_Paint(object sender, PaintEventArgs e) {
-            canvas.BackgroundImage = GetBitmap();
+            if (!isUpToDate) {
+                canvas.BackgroundImage = GetBitmap();
+                isUpToDate = true;
+            }
         }
 
         private void Canvas_MouseDown(object sender, MouseEventArgs e) {
@@ -211,7 +216,7 @@ namespace Paint_It__Black {
         private void Canvas_MouseMove(object sender, MouseEventArgs e) {
             if (selectedShape == 0 && tempVertexIndex != -1) {
                 tempShape.Vertices[tempVertexIndex] = new Point(e.X, e.Y);
-                canvas.Refresh();
+                isUpToDate = false; canvas.Refresh();
             }
         }
 
@@ -220,7 +225,7 @@ namespace Paint_It__Black {
                 tempVertexIndex = -1;
                 shapes.Remove(tempShape);
                 shapes.Add(tempShape);
-                canvas.Refresh();
+                isUpToDate = false; canvas.Refresh();
             }
         }
 
@@ -242,7 +247,7 @@ namespace Paint_It__Black {
                     }
                 }
             } else if (moving) StopMoving();
-            canvas.Refresh();
+            isUpToDate = false; canvas.Refresh();
         }
 
         private void newToolStripMenuItem_Click(object sender, EventArgs e) {
@@ -254,14 +259,16 @@ namespace Paint_It__Black {
             selectedShape = 0;
             colorDialog.Color = Color.Black;
             colorPickerButton.BackColor = colorDialog.Color;
-            canvas.Refresh();
+            isUpToDate = false; canvas.Refresh();
         }
 
         private void saveToolStripMenuItem_Click(object sender, EventArgs e) {
             //show the dialog, get the correct path:
-            folderBrowserDialog.ShowDialog();
-            string path = folderBrowserDialog.SelectedPath;
-            GetBitmap().Save(path + "/drawing.bmp");
+            DialogResult result = folderBrowserDialog.ShowDialog();
+            if (result == DialogResult.OK) {
+                string path = folderBrowserDialog.SelectedPath;
+                GetBitmap().Save(path + "/drawing.bmp");
+            }
         }
 
         private void colorPickerButton_Click(object sender, EventArgs e) {
