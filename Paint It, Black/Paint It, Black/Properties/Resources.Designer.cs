@@ -8,7 +8,7 @@
 // </auto-generated>
 //------------------------------------------------------------------------------
 
-namespace Paint_It_Black.Properties {
+namespace Paint_It__Black.Properties {
     using System;
     
     

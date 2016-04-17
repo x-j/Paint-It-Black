@@ -6,6 +6,7 @@ using System.Windows.Forms;
 
 namespace Paint_It__Black {
     public partial class MainForm : Form {
+        private const int V = 5;
 
         //lists containing the controls:
         List<Button> buttons = new List<Button>();
@@ -23,6 +24,7 @@ namespace Paint_It__Black {
         private Shape tempShape;
         private bool moving;
         private bool isUpToDate = true;
+        private FilenameAsker asker = new FilenameAsker();
 
         private class Shape {
 
@@ -54,13 +56,11 @@ namespace Paint_It__Black {
             canvas.MouseUp += Canvas_MouseUp;
             canvas.MouseDoubleClick += Canvas_MouseDoubleClick;
 
-            KeyUp += KeyUp_Handler;
-
         }
 
-        private void KeyUp_Handler(object sender, KeyEventArgs e) {
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData) {
             if (moving) {
-                switch (e.KeyData) {
+                switch (keyData) {
                     case Keys.Enter:
                         StopMoving();
                         break;
@@ -68,7 +68,7 @@ namespace Paint_It__Black {
                     case Keys.Up:
                         for (int i = 0; i < tempShape.Vertices.Count; i++) {
                             Point v = new Point(tempShape.Vertices[i].X, tempShape.Vertices[i].Y);
-                            v.Y -= 5;
+                            v.Y -= V;
                             tempShape.Vertices[i] = v;
                         }
                         break;
@@ -76,7 +76,7 @@ namespace Paint_It__Black {
                     case Keys.Down:
                         for (int i = 0; i < tempShape.Vertices.Count; i++) {
                             Point v = new Point(tempShape.Vertices[i].X, tempShape.Vertices[i].Y);
-                            v.Y += 5;
+                            v.Y += V;
                             tempShape.Vertices[i] = v;
                         }
                         break;
@@ -84,7 +84,7 @@ namespace Paint_It__Black {
                     case Keys.Left:
                         for (int i = 0; i < tempShape.Vertices.Count; i++) {
                             Point v = new Point(tempShape.Vertices[i].X, tempShape.Vertices[i].Y);
-                            v.X -= 5;
+                            v.X -= V;
                             tempShape.Vertices[i] = v;
                         }
                         break;
@@ -92,14 +92,17 @@ namespace Paint_It__Black {
                     case Keys.Right:
                         for (int i = 0; i < tempShape.Vertices.Count; i++) {
                             Point v = new Point(tempShape.Vertices[i].X, tempShape.Vertices[i].Y);
-                            v.X += 5;
+                            v.X += V;
                             tempShape.Vertices[i] = v;
                         }
                         break;
+
+                    default:
+                        return base.ProcessCmdKey(ref msg, keyData);
                 }
             }
             isUpToDate = false; canvas.Refresh();
-
+            return base.ProcessCmdKey(ref msg, keyData);
         }
 
         private void button_Click(object sender, EventArgs e) {
@@ -267,7 +270,9 @@ namespace Paint_It__Black {
             DialogResult result = folderBrowserDialog.ShowDialog();
             if (result == DialogResult.OK) {
                 string path = folderBrowserDialog.SelectedPath;
-                GetBitmap().Save(path + "/drawing.bmp");
+                asker.ShowDialog();
+                string filename = asker.textBox.Text;
+                GetBitmap().Save(path + "\\" + filename + ".bmp");
             }
         }
 
