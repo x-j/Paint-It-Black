@@ -6,7 +6,9 @@ using System.Windows.Forms;
 
 namespace Paint_It__Black {
     public partial class MainForm : Form {
+
         private const int V = 5;
+        private const int VERTEX_CLICK_TOLERANCE = 5;
 
         //lists containing the controls:
         List<Button> buttons = new List<Button>();
@@ -22,7 +24,7 @@ namespace Paint_It__Black {
         List<Shape> shapes = new List<Shape>();
         private int tempVertexIndex = -1;
         private Shape tempShape;
-        private bool moving;
+        private bool isMoving;
         private bool isUpToDate = true;
         private FilenameAsker asker = new FilenameAsker();
 
@@ -59,7 +61,7 @@ namespace Paint_It__Black {
         }
 
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData) {
-            if (moving) {
+            if (isMoving) {
                 switch (keyData) {
                     case Keys.Enter:
                         StopMoving();
@@ -120,7 +122,7 @@ namespace Paint_It__Black {
                 UpdateLabel();
                 if (clickedPoints.Count == clickRequirements[selectedShape]) CreateShape();
             }
-            if (moving) {
+            if (isMoving) {
                 GraphicsPath gp = new GraphicsPath();
                 if (tempShape.Vertices.Count > 2) gp.AddPolygon(tempShape.Vertices.ToArray());
                 else gp.AddLine(tempShape.Vertices[0], tempShape.Vertices[1]);
@@ -131,10 +133,8 @@ namespace Paint_It__Black {
         }
 
         private void StopMoving() {
-            moving = false;
+            isMoving = false;
             tempShape.HasBorder = false;
-            shapes.Remove(tempShape);
-            shapes.Add(tempShape);
             foreach (var c in splitContainer.Panel1.Controls)
                 if (c is Button) (c as Button).Enabled = true;
             isUpToDate = false; canvas.Refresh();
@@ -196,29 +196,18 @@ namespace Paint_It__Black {
 
         private bool AreArbitrarilyClose(Point vertex, Point p) {
             //hilarious method, makes clicking "on" a vertex easier.
-            if (vertex.Equals(p)) return true;
-            p.Y++;
-            if (vertex.Equals(p)) return true;
-            p.X++;
-            if (vertex.Equals(p)) return true;
-            p.Y--;
-            if (vertex.Equals(p)) return true;
-            p.Y--;
-            if (vertex.Equals(p)) return true;
-            p.X--;
-            if (vertex.Equals(p)) return true;
-            p.X--;
-            if (vertex.Equals(p)) return true;
-            p.Y++;
-            if (vertex.Equals(p)) return true;
-            p.Y++;
-            if (vertex.Equals(p)) return true;
-            return false;
+            int radius = VERTEX_CLICK_TOLERANCE;
+            int xDistance = vertex.X - p.X;
+            int yDistance = vertex.Y - p.Y;
+            if (xDistance * xDistance + yDistance * yDistance <= radius) return true;
+            else return false;
         }
 
         private void Canvas_MouseMove(object sender, MouseEventArgs e) {
             if (selectedShape == 0 && tempVertexIndex != -1) {
                 tempShape.Vertices[tempVertexIndex] = new Point(e.X, e.Y);
+                shapes.Remove(tempShape);
+                shapes.Add(tempShape);
                 isUpToDate = false; canvas.Refresh();
             }
         }
@@ -233,7 +222,7 @@ namespace Paint_It__Black {
         }
 
         private void Canvas_MouseDoubleClick(object sender, MouseEventArgs e) {
-            if (selectedShape == 0 && tempVertexIndex == -1 && !moving) {
+            if (selectedShape == 0 && tempVertexIndex == -1 && !isMoving) {
                 for (int i = shapes.Count - 1; i >= 0; i--) {
                     Shape shape = shapes[i];
                     Point p = new Point(e.X, e.Y);
@@ -242,14 +231,15 @@ namespace Paint_It__Black {
                     else gp.AddLine(shape.Vertices[0], shape.Vertices[1]);
                     if (gp.IsVisible(p) || gp.IsOutlineVisible(p, new Pen(Color.Black, 3))) {
                         shape.HasBorder = true;
-                        moving = true;
+                        isMoving = true;
+                        splitContainer.Panel2.Focus();
                         tempShape = shape;
-                        foreach (var c in splitContainer.Panel1.Controls)
-                            if (c is Button) (c as Button).Enabled = false;
+                        shapes.Remove(tempShape);
+                        shapes.Add(tempShape);
                         break;
                     }
                 }
-            } else if (moving) StopMoving();
+            } else if (isMoving) StopMoving();
             isUpToDate = false; canvas.Refresh();
         }
 
