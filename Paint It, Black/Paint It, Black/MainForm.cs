@@ -8,18 +8,21 @@ namespace Paint_It__Black {
     public partial class MainForm : Form {
 
         private const int V = 5;
-        private const int VERTEX_CLICK_TOLERANCE = 5;
+        private const int VERTEX_CLICK_TOLERANCE = 15;
 
         //lists containing the controls:
         List<Button> buttons = new List<Button>();
         List<Label> labels = new List<Label>();
 
-        byte[] clickRequirements = { 0, 2, 3, 4, 6, 1 };  //useful 
-        string[] shapeNames = { "nulloid", "segment", "triangle", "quadrangle", "hexagon", "circle" };    //less useful
+        string[] shapeNames = { "nulloid", "segment", "rectangle", "conves", "hexagon", "circle" };    //not so useful
+        byte[] clickRequirements = { 0, 2, 2, 100, 6, 1 };  //kinda useful
+
+        byte LEFT = 1, RIGHT = 2, BOTTOM = 4, TOP = 8;  //outcodes
+        enum FillType { STANDARD, FLOOD };
 
         byte selectedShape = 0; //if this is 0 it means we're not drawing at this moment
 
-        List<Point> clickedPoints = new List<Point>();
+        Queue<Point> clickedPoints = new Queue<Point>();
 
         List<Shape> shapes = new List<Shape>();
         private int tempVertexIndex = -1;
@@ -27,21 +30,56 @@ namespace Paint_It__Black {
         private bool isMoving;
         private bool isUpToDate = true;
         private FilenameAsker asker = new FilenameAsker();
+        private Shape clippingShape;
+        private bool awaitingFlood = false;
+        private Shape shapeToFlood;
+        private bool startSelected = false;
+
+        private Point startFlood = new Point();
 
         private class Shape {
 
-            public List<Point> Vertices { get; private set; }
-            public Color Color { get; private set; }
+            public List<Point> Vertices { get; set; }
             public bool HasBorder { get; internal set; }
             public int Thickness { get; internal set; }
             public bool AntiAliased { get; internal set; }
             public int Radius { get; internal set; }
+            public int MultiSampling { get; internal set; }
+            public Color LineColor { get; internal set; }
+            public Color FillColor { get; internal set; }
+            public bool Filled { get; internal set; }
+            public FillType FillType { get; internal set; }
 
-            public Shape(List<Point> pointsClicked, Color color) {
+            public Shape(List<Point> pointsClicked) {
                 Vertices = pointsClicked;
-                Color = color;
             }
 
+        }
+
+        private class Bucket {
+            public Point a;
+            public Point b;
+            public int yMax;
+            public int yMin;
+            public double currentX;
+            public int startingX;
+            public int dx;
+            public int dy;
+            public double invSlope;
+            public int sign;
+
+            public Bucket(Point a, Point b) {
+                this.a = new Point(new Size(a));
+                this.b = new Point(new Size(b));
+                dx = b.X - a.X;
+                dy = b.Y - a.Y;
+                yMax = Math.Max(a.Y, b.Y);
+                yMin = Math.Min(a.Y, b.Y);
+                startingX = a.X;
+                invSlope = Math.Abs(((double)dx) / dy);
+                currentX = a.X + invSlope;
+                sign = Math.Sign(dx) * Math.Sign(dy);
+            }
         }
 
         public MainForm() {
@@ -50,13 +88,11 @@ namespace Paint_It__Black {
             foreach(Control c in splitContainer.Panel1.Controls) {
                 if(c is Label)
                     labels.Add(c as Label);
-                if(c is Button && !(c.Tag as string).Equals("color picker")) {
-                    buttons.Add(c as Button);
-                    c.Click += button_Click;
-
-                    // 2017 CODE: MAKE INVISIBLE ALL BUTTONS EXCEPT FOR THE SEGMENT ONE.
-                    if(!((c.Tag as string).Equals("1") || (c.Tag as string).Equals("5")))
-                        c.Visible = false;
+                if(c.Tag != null) {
+                    if(c is Button && !(c.Tag as string).Equals("color picker")) {
+                        buttons.Add(c as Button);
+                        c.Click += button_Click;
+                    }
                 }
             }
             canvas.Click += Canvas_Click;
@@ -66,6 +102,7 @@ namespace Paint_It__Black {
             canvas.MouseUp += Canvas_MouseUp;
             canvas.MouseDoubleClick += Canvas_MouseDoubleClick;
 
+            canvas.BackgroundImage = new Bitmap(canvas.Width, canvas.Height);
         }
 
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData) {
@@ -121,17 +158,38 @@ namespace Paint_It__Black {
             foreach(var b in buttons)
                 b.Enabled = false;
             Label label = labels.Find(l => (l.Tag as string).Equals(selectedShape.ToString()));
-            label.Visible = true;
-            label.Text = "Click " + clickRequirements[selectedShape] + " more points to draw a " + shapeNames[selectedShape];
+            if(label != null) {
+                label.Visible = true;
+                label.Text = "Click " + clickRequirements[selectedShape] + " more points to draw a " + shapeNames[selectedShape];
+            }
         }
 
         private void Canvas_Click(object sender, EventArgs e) {
             MouseEventArgs args = e as MouseEventArgs;
+            if(awaitingFlood && !startSelected /*and check if it's inside the polygon*/) {
+                startFlood = args.Location;
+                startSelected = true;
+                isUpToDate = false;
+                canvas.Refresh();
+            }
             if(selectedShape > 0) {
-                clickedPoints.Add(args.Location);
-                UpdateLabel();
-                if(clickedPoints.Count == clickRequirements[selectedShape])
-                    CreateShape();
+                if(selectedShape == 3) {
+                    Graphics graphics = Graphics.FromImage(canvas.BackgroundImage);
+                    Point p = args.Location;
+                    graphics.FillEllipse(new SolidBrush(Color.DarkCyan), p.X - 3, p.Y - 3, 6, 6);
+                    canvas.Refresh();
+                    if(clickedPoints.Count > 0 && AreArbitrarilyClose(clickedPoints.Peek(), args.Location))
+                        CreateShape();
+                    else
+                        clickedPoints.Enqueue(args.Location);
+
+                } else {
+                    clickedPoints.Enqueue(args.Location);
+                    UpdateLabel();
+                    if(clickedPoints.Count == clickRequirements[selectedShape])
+                        CreateShape();
+                }
+
             }
             // HANDLE MOVING SHAPES, THIS IS NOT REQUIRED FOR 2017 AND BY THE WAY I DIDN'T IMPLEMENT DRAWING HERE.
             if(isMoving) {
@@ -146,6 +204,7 @@ namespace Paint_It__Black {
             }
         }
 
+
         private void StopMoving() {
             isMoving = false;
             tempShape.HasBorder = false;
@@ -158,111 +217,374 @@ namespace Paint_It__Black {
 
         private void UpdateLabel() {
             Label label = labels.Find(l => (l.Tag as string).Equals(selectedShape.ToString()));
-            label.Text = "Click " + (clickRequirements[selectedShape] - clickedPoints.Count) + " more points to draw a " + shapeNames[selectedShape] + ".";
+            if(label != null) {
+                int remainingClicks = clickRequirements[selectedShape] - clickedPoints.Count;
+                if(remainingClicks > 0)
+                    label.Text = "Click " + remainingClicks + " more points to draw a " + shapeNames[selectedShape] + ".";
+                else
+                    label.Text = "";
+            }
+
         }
 
         private void CreateShape() {
-            Shape s = new Shape(new List<Point>(clickedPoints), colorDialog.Color) {
+            Shape s = new Shape(new List<Point>(clickedPoints)) {
                 Thickness = (int)numericUpDown.Value,
-                AntiAliased = antialiasCheckBox.Checked
+                AntiAliased = antialiasCheckBox.Checked,
+                MultiSampling = (int)supersamplingUpDown.Value,
+                LineColor = lineColorPickerButton.BackColor,
+                FillColor = fillColorPickerButton.BackColor
             };
+            // if the selected shape was a rectangle, infer the two remaining vertices (only two were clicked, and we need 4 in total)
+            if(selectedShape == 2) {
+                Point p1 = clickedPoints.Dequeue();
+                Point p3 = clickedPoints.Dequeue();
+                Point p2 = new Point(p1.X, p3.Y);
+                Point p4 = new Point(p3.X, p1.Y);
+                List<Point> newVs = new List<Point>();
+                newVs.Add(p1);
+                newVs.Add(p2);
+                newVs.Add(p3);
+                newVs.Add(p4);
+                s.Vertices = newVs;
+            }
+
             if(s.Vertices.Count == 1)
                 s.Radius = (int)radiusPicker.Value;
+
+            if(standardFillingCheckbox.Checked) {
+                s.Filled = true;
+                s.FillType = FillType.STANDARD;
+            }
+            if(floodFillingCheckBox.Checked) {
+                s.Filled = true;
+                s.FillType = FillType.FLOOD;
+                shapeToFlood = s;
+            }
+
+            if(clippingCheckBox.Checked) {
+                clippingCheckBox.Checked = false;
+                clippingShape = s;  //remember this dude for later clipping purposes
+            }
+
             shapes.Add(s);
+
             isUpToDate = false;
             canvas.Refresh();
             foreach(var b in buttons)
                 b.Enabled = true;
-            foreach(var l in labels)
-                l.Visible = false;
             clickedPoints.Clear();
             selectedShape = 0;
+
+            awaitingFlood = true;
+            startSelected = false;
         }
 
         private Bitmap DrawBitmap() {
+
             //2017: this method actually handles drawing the lines. Mid-point etc. should go here.
-
-            //some sweet code below, shame we can't use it :(
-
-            //Bitmap theBitmap = new Bitmap(canvas.Width, canvas.Height);
-            //Graphics g = Graphics.FromImage(theBitmap);
-            //g.SmoothingMode = SmoothingMode.AntiAlias;
-
-            //foreach (var shape in shapes) {
-            //    Pen pen = new Pen(shape.Color, 2);
-            //    g.DrawPolygon(pen, shape.Vertices.ToArray());
-            //    g.FillPolygon(pen.Brush, shape.Vertices.ToArray());
-            //    pen.Dispose();
-            //    if (shape.HasBorder) {
-            //        pen = new Pen(Color.Yellow, 2);
-            //        g.DrawPolygon(pen, shape.Vertices.ToArray());
-            //    }
-            //}
-            //g.Dispose();
-
             Bitmap oldBitmap = new Bitmap(canvas.Width, canvas.Height);
 
             foreach(var shape in shapes) {
-                //this just to make it easier for me, but all shapes should be lines (for now?!)
                 if(shape.Vertices.Count == 2) {
                     // it is a line!
-                    Point[] vertices = shape.Vertices.ToArray();
-                    Point vA = vertices[0];
-                    Point vB = vertices[1];
+                    Point a = shape.Vertices[0];
+                    Point b = shape.Vertices[1];
 
-                    // check if the points are located inside the bitmap:
-                    if(new Rectangle(new Point(0, 0), oldBitmap.Size).Contains(vA) && new Rectangle(new Point(0, 0), oldBitmap.Size).Contains(vB)) {
-                        if(shape.AntiAliased) {
-                            ThickAntialiasedLine(vA, vB, shape.Thickness, oldBitmap, shape.Color);
-                        } else {
-                            // if we're not doing antialiasing, then just use pixel copying
-                            for(int i = 0; i < shape.Thickness; i++) {
-                                if(i % 2 == 0) {
-                                    vA.Y -= i + 1;
-                                    vB.Y -= i + 1;
-                                    DrawMidpointLine(vA, vB, oldBitmap, shape.Color);
-                                    vA.Y += i + 1;
-                                    vB.Y += i + 1;
-                                } else {
-                                    DrawMidpointLine(vA, vB, oldBitmap, shape.Color);
-                                    vA.Y += 1;
-                                    vB.Y += 1;
-                                }
-                            }
-                        }
-                    }
+                    // check if it clips against the clippingShape
+                    if(clippingShape != null) {
+                        CohenSutherland(a, b, shape, oldBitmap);
+                    } else
+                        DrawAccordingLine(a, b, shape, oldBitmap);
                 }
                 if(shape.Vertices.Count == 1) {
                     //it is a circle!
                     Point p = shape.Vertices[0];
-                    MidpointCircle(p.X, p.Y, shape.Radius, oldBitmap, shape.Color);
+                    MidpointCircle(p.X, p.Y, shape.Radius, oldBitmap, shape.LineColor);
                 }
+                if(shape.Vertices.Count >= 4) {
+                    List<Bucket> buckets = new List<Bucket>();
+                    for(int i = 0; i < shape.Vertices.Count; i++) {
+                        Point a;
+                        if(i == 0)
+                            a = shape.Vertices.FindLast(p => true);
+                        else
+                            a = shape.Vertices[i - 1];
+                        Point b = shape.Vertices[i];
 
+                        Bucket bucket = new Bucket(a, b);
+                        buckets.Add(bucket);
+                        DrawAccordingLine(a, b, shape, oldBitmap);
+                    }
+                    if(shape.Filled) {
+                        if(shape.FillType == FillType.STANDARD) {
+                            // sort the buckets
+                            oldBitmap = ScanlineAET(shape, buckets, oldBitmap);
+
+                        } else if(shape.FillType == FillType.FLOOD) {
+                            if(startSelected)
+                                oldBitmap = FloodFill(shape, startFlood, oldBitmap);
+                        }
+                    }
+                }
             }
 
             return oldBitmap;
         }
+
+        private Bitmap ScanlineAET(Shape shape, List<Bucket> buckets, Bitmap oldBitmap) {
+
+            Bitmap newBitmap = new Bitmap(oldBitmap);
+
+            buckets.Sort(delegate (Bucket a, Bucket b) {
+                if(a.yMin < b.yMin)
+                    return -1;
+                else if(a.yMin == b.yMin) {
+                    if(a.a.Y + a.b.Y < b.a.Y + b.b.Y)
+                        return -1;
+                    else if(a.a.Y + a.b.Y > b.a.Y + b.b.Y)
+                        return 1;
+                    else
+                        return 0;
+                } else
+                    return 1;
+            });
+
+            Bucket lowestBucket = buckets[0];
+            List<Bucket> activeEdgeTable = new List<Bucket>();
+            for(int scanline = lowestBucket.yMin; buckets.Count > 0; scanline++) {
+                // add edges that might need to be added to AET
+                for(int i = 0; i < buckets.Count; i++) {
+                    Bucket edge = buckets[i];
+                    if(edge.yMin == scanline) {
+                        activeEdgeTable.Add(edge);
+                        buckets.Remove(edge);
+                        i--;
+                    }
+                }
+                // remove edges that need to be removed from AET
+                for(int i = 0; i < activeEdgeTable.Count; i++) {
+                    Bucket edge = activeEdgeTable[i];
+                    if(edge.yMax == scanline)
+                        activeEdgeTable.Remove(edge);
+                }
+                // sort edges in AET by x
+                activeEdgeTable.Sort(delegate (Bucket a, Bucket b) {
+                    if(a.currentX < b.currentX)
+                        return -1;
+                    else if(a.currentX > b.currentX)
+                        return 1;
+                    else
+                        return 0;
+                });
+                // Fill in the scan line between pairs of edges from AET
+                for(int i = 1; i < activeEdgeTable.Count; i++) {
+                    Bucket leftEdge = activeEdgeTable[i - 1];
+                    Bucket rightEdge = activeEdgeTable[i];
+                    for(double doublex = leftEdge.currentX; doublex < rightEdge.currentX; doublex++) {
+                        int x = (int)doublex;
+                        if(newBitmap.GetPixel(x, scanline).ToArgb() != shape.LineColor.ToArgb())
+                            newBitmap.SetPixel(x, scanline, shape.FillColor);
+                    }
+                    // increment current X's if not vertical
+                    if(leftEdge.dx != 0)
+                        leftEdge.currentX += leftEdge.sign * leftEdge.invSlope;
+                    if(rightEdge.dx != 0)
+                        rightEdge.currentX += rightEdge.sign * rightEdge.invSlope;
+                }
+            }
+            return newBitmap;
+        }
+
+        private Bitmap FloodFill(Shape shape, Point start, Bitmap oldBitmap) {
+
+            Bitmap newBitmap = new Bitmap(oldBitmap);
+
+            Queue<Point> queue = new Queue<Point>();
+            queue.Enqueue(start);
+            while(queue.Count > 0) {
+                Point p = queue.Dequeue();
+                if(newBitmap.GetPixel(p.X, p.Y).Equals(shape.LineColor)) {
+                    continue;
+                } else {
+                    newBitmap.SetPixel(p.X, p.Y, shape.FillColor);
+
+                    Point left = new Point(p.X - 1, p.Y);
+                    Point right = new Point(p.X + 1, p.Y);
+                    Point up = new Point(p.X, p.Y - 1);
+                    Point down = new Point(p.X, p.Y + 1);
+
+                    if(left.X >= 0 && newBitmap.GetPixel(left.X, left.Y).ToArgb() != shape.LineColor.ToArgb()) {
+                        if(newBitmap.GetPixel(left.X, left.Y).ToArgb() != shape.FillColor.ToArgb()) {
+                            newBitmap.SetPixel(left.X, left.Y, shape.FillColor);
+                            queue.Enqueue(left);
+                        }
+                    }
+
+                    if(right.X <= newBitmap.Width - 1 && newBitmap.GetPixel(right.X, right.Y).ToArgb() != shape.LineColor.ToArgb()) {
+                        if(newBitmap.GetPixel(right.X, right.Y).ToArgb() != shape.FillColor.ToArgb()) {
+                            newBitmap.SetPixel(right.X, right.Y, shape.FillColor);
+                            queue.Enqueue(right);
+                        }
+                    }
+
+                    if(up.Y >= 0 && newBitmap.GetPixel(up.X, up.Y).ToArgb() != shape.LineColor.ToArgb()) {
+                        if(newBitmap.GetPixel(up.X, up.Y).ToArgb() != shape.FillColor.ToArgb()) {
+                            newBitmap.SetPixel(up.X, up.Y, shape.FillColor);
+                            queue.Enqueue(up);
+                        }
+                    }
+
+                    if(down.Y < newBitmap.Height - 1 && newBitmap.GetPixel(down.X, down.Y).ToArgb() != shape.LineColor.ToArgb()) {
+                        if(newBitmap.GetPixel(down.X, down.Y).ToArgb() != shape.FillColor.ToArgb()) {
+                            newBitmap.SetPixel(down.X, down.Y, shape.FillColor);
+                            queue.Enqueue(down);
+                        }
+                    }
+                }
+            }
+            return newBitmap;
+        }
+
+        void CohenSutherland(Point a, Point b, Shape shape, Bitmap oldBitmap) {
+            bool accept = false, done = false;
+            // warning: this will only work on rectangles. not convexii
+            Point clipStart = clippingShape.Vertices[0];
+            Size clipSize = new Size(Point.Subtract(clippingShape.Vertices[2], new Size(clipStart)));
+            Rectangle clip = new Rectangle(clipStart, clipSize);
+            byte outcode1 = ComputeOutcode(a, clip);
+            byte outcode2 = ComputeOutcode(b, clip);
+
+            do {
+                if((outcode1 | outcode2) == 0) { //trivially rejected
+                    accept = true;
+                    done = true;
+                } else if((outcode1 & outcode2) != 0) { //trivially accepted
+                    accept = false;
+                    done = true;
+                } else { //subdivide
+                    byte outcodeOut = (outcode1 != 0) ? outcode1 : outcode2;
+                    Point p = new Point();
+                    if((outcodeOut & TOP) != 0)
+                        p = new Point(a.X + (b.X - a.X) * (clip.Top - a.Y) / (b.Y - a.Y), clip.Top);
+                    else if((outcodeOut & BOTTOM) != 0)
+                        p = new Point(a.X + (b.X - a.X) * (clip.Bottom - a.Y) / (b.Y - a.Y), clip.Bottom);
+                    else if((outcodeOut & RIGHT) != 0)   // point is to the right of clip rectangle
+                        p = new Point(clip.Right, a.Y + (b.Y - a.Y) * (clip.Right - a.X) / (b.X - a.X));
+                    else if((outcodeOut & LEFT) != 0)    // point is to the left of clip rectangle
+                        p = new Point(clip.Left, a.Y + (b.Y - a.Y) * (clip.Left - a.X) / (b.X - a.X));
+                    if(outcodeOut == outcode1) {
+                        a = p;
+                        outcode1 = ComputeOutcode(a, clip);
+                    } else {
+                        b = p;
+                        outcode2 = ComputeOutcode(b, clip);
+                    }
+                }
+            } while(!done);
+            if(accept) {
+                shape.Vertices[0] = a;
+                shape.Vertices[1] = b;
+                DrawAccordingLine(a, b, shape, oldBitmap);
+            }
+        }
+
+        byte ComputeOutcode(Point p, Rectangle clip) {
+            byte outcode = 0;
+            if(p.X > clip.Right)
+                outcode |= RIGHT;
+            else if(p.X < clip.Left)
+                outcode |= LEFT;
+            if(p.Y < clip.Top)
+                outcode |= TOP;
+            else if(p.Y > clip.Bottom)
+                outcode |= BOTTOM;
+            return outcode;
+        }
+
+        private void DrawAccordingLine(Point vA, Point vB, Shape shape, Bitmap oldBitmap) {
+            // check if the points are located inside the bitmap:
+            if(new Rectangle(new Point(0, 0), oldBitmap.Size).Contains(vA) && new Rectangle(new Point(0, 0), oldBitmap.Size).Contains(vB)) {
+
+                if(shape.AntiAliased) {
+                    ThickAntialiasedLine(vA, vB, shape.Thickness, oldBitmap, shape.LineColor);
+                } else {
+                    // if we're not doing antialiasing, then just use pixel copying
+                    if(shape.MultiSampling == 1) {
+                        ThickMidpointLine(vA, vB, shape.Thickness, oldBitmap, shape.LineColor);
+                    } else {
+                        // draw a thicker line on the bigger bitmap:
+                        int scale = shape.MultiSampling;
+                        ThickMultiSampledLine(vA, vB, scale, shape.Thickness, oldBitmap, shape.LineColor);
+                    }
+                }
+            }
+        }
+
+        private void ThickMultiSampledLine(Point vA, Point vB, int scale, int thickness, Bitmap oldBitmap, Color color) {
+            Bitmap bigBitmap = new Bitmap(oldBitmap, oldBitmap.Width * scale, oldBitmap.Height * scale);
+            using(Graphics gfx = Graphics.FromImage(bigBitmap))
+            using(SolidBrush brush = new SolidBrush(Color.White)) {
+                gfx.FillRectangle(brush, 0, 0, bigBitmap.Width, bigBitmap.Height);
+            }
+
+            int thickerThickness = thickness + scale;
+            Point thickStart = Point.Add(vA, new Size(vA));
+            Point thickEnd = Point.Add(vB, new Size(vB));
+            ThickMidpointLine(thickStart, thickEnd, thickerThickness, bigBitmap, color);
+
+            Color[,] intensities = new Color[bigBitmap.Width, bigBitmap.Height];
+
+            // count occurences of pixels in the bigger bitmap.
+            for(int y = 0; y <= thickEnd.Y - thickStart.Y; y++) {
+                for(int x = 0; x <= thickEnd.X - thickStart.X; x++) {
+
+                    int imageX = x + thickStart.X;
+                    int imageY = y + thickStart.Y;
+
+                    int avgR = 0;
+                    int avgG = 0;
+                    int avgB = 0;
+                    for(int i = 0; i < scale; i++) {
+                        for(int j = 0; j < scale; j++) {
+                            avgR += bigBitmap.GetPixel(imageX + i, imageY + j).R;
+                            avgG += bigBitmap.GetPixel(imageX + i, imageY + j).G;
+                            avgB += bigBitmap.GetPixel(imageX + i, imageY + j).B;
+                        }
+                    }
+                    int newR = avgR / (scale * scale);
+                    int newG = avgG / (scale * scale);
+                    int newB = avgB / (scale * scale);
+                    intensities[x, y] = Color.FromArgb(newR, newG, newB);
+                }
+            }
+
+            for(int y = 0; y <= vB.Y - vA.Y; y++)
+                for(int x = 0; x <= vB.X - vA.X; x++)
+                    oldBitmap.SetPixel(vA.X + x, vA.Y + y, intensities[x, y]);
+
+        }
+
+        private void ThickMidpointLine(Point a, Point b, int thickness, Bitmap oldBitmap, Color color) {
+            for(int i = 0; i < thickness; i++) {
+                if(i % 2 == 0) {
+                    a.Y -= i + 1;
+                    b.Y -= i + 1;
+                    DrawMidpointLine(a, b, oldBitmap, color);
+                    a.Y += i + 1;
+                    b.Y += i + 1;
+                } else {
+                    DrawMidpointLine(a, b, oldBitmap, color);
+                    a.Y += 1;
+                    b.Y += 1;
+                }
+            }
+        }
+
         void MidpointCircle(int xCenter, int yCenter, int radius, Bitmap bitmap, Color color) {
             int dE = 3;
             int dSE = 5 - 2 * radius;
             int d = 1 - radius;
-            //y += radius;
-            //bitmap.SetPixel(x, y, color);
-            //while(y > x) {
-            //    if(d < 0) { //move to E
-            //        d += dE;
-            //        dE += 2;
-            //        dSE += 2;
-            //    } else { //move to SE
-            //        d += dSE;
-            //        dE += 2;
-            //        dSE += 4;
-            //        --y;
-            //    }
-            //    ++x;
-            //    bitmap.SetPixel(x, y, color);
-            //}
-
             int x = 0;
             int y = radius;
             bitmap.SetPixel(x + xCenter, y + yCenter, color);
@@ -274,7 +596,7 @@ namespace Paint_It__Black {
                     --y;
                 }
                 ++x;
-                //Circle has 8-fold symmetry
+                // 8-fold symmetry
                 bitmap.SetPixel(x + xCenter, y + yCenter, color);
                 bitmap.SetPixel(y + xCenter, x + yCenter, color);
                 bitmap.SetPixel(y + xCenter, -x + yCenter, color);
@@ -341,45 +663,70 @@ namespace Paint_It__Black {
                 }
                 // Now set the chosen pixel and its neighbors
                 IntensifyPixel(x, y, thickness, two_v_dx * invDenom, bitmap, color);
-                for(int i = 0; i < thickness/2 + 1; i++)
+                for(int i = 0; i < thickness / 2 + 1; i++)
                     IntensifyPixel(x, y + i, thickness, two_dx_invDenom + two_v_dx * invDenom - i, bitmap, color);
-                for(int i = 1; i < thickness/2 + 1; i++)
+                for(int i = 0; i < thickness / 2 + 1; i++)
                     IntensifyPixel(x, y - i, thickness, two_dx_invDenom - two_v_dx * invDenom - i, bitmap, color);
 
             }
         }
 
+        void DrawMidpointLine(Point a, Point b, Bitmap bitmap, Color color) {
 
-        void DrawMidpointLine(Point p1, Point p2, Bitmap bitmap, Color color) {
+            int Bx = b.X;
+            int Ax = a.X;
+            int By = b.Y;
+            int Ay = a.Y;
 
+            int y, x, dy, dx, sx, sy;
+            int decision, incE, incNE;
 
-            int x1 = p1.X;
-            int y1 = p1.Y;
-            int x2 = p2.X;
-            int y2 = p2.Y;
+            dx = Bx - Ax;
+            dy = By - Ay;
 
-            int dx = x2 - x1;
-            int dy = y2 - y1;
-            int d = 2 * dy - dx; // initial value of d
-            int dE = 2 * dy; // increment used when moving to E
-            int dNE = 2 * (dy - dx); // increment used when movint to NE
-            int x = x1, y = y1;
-            bitmap.SetPixel(x, y, color);
-            while(x < x2) {
-                if(d < 0) // move to E
-                {
-                    d += dE;
-                    x++;
-                } else // move to NE
-                  {
-                    d += dNE;
-                    ++x;
-                    ++y;
-                }
-                bitmap.SetPixel(x, y, color);
+            sx = Math.Sign(dx);
+            sy = Math.Sign(dy);
+
+            dx = Math.Abs(dx);
+            dy = Math.Abs(dy);
+
+            if(dy > dx) {
+                incE = 2 * dx;
+                incNE = 2 * dx - 2 * dy;
+                decision = 2 * dx - dy;
+
+                x = Ax;
+                y = Ay;
+                do {
+                    bitmap.SetPixel(x, y, color);
+                    if(decision <= 0)
+                        decision += incE;
+                    else {
+                        decision += incNE;
+                        x += sx;
+                    }
+                    y += sy;
+                } while(y != By);
+            } else {
+                incE = 2 * dy;
+                incNE = 2 * dy - 2 * dx;
+                decision = 2 * dy - dx;
+
+                x = Ax;
+                y = Ay;
+                do {
+                    bitmap.SetPixel(x, y, color);
+                    if(decision <= 0)
+                        decision += incE;
+                    else {
+                        decision += incNE;
+                        y += sy;
+                    }
+                    x += sx;
+                } while(x != Bx);
             }
-        }
 
+        }
 
         private void Canvas_Paint(object sender, PaintEventArgs e) {
             if(!isUpToDate) {
@@ -465,16 +812,20 @@ namespace Paint_It__Black {
             //we refresh everything!
             foreach(var b in buttons)
                 b.Enabled = true;
-            foreach(var l in labels)
-                l.Visible = false;
             shapes.Clear();
             clickedPoints.Clear();
             selectedShape = 0;
             colorDialog.Color = Color.Black;
-            colorPickerButton.BackColor = colorDialog.Color;
+            lineColorPickerButton.BackColor = colorDialog.Color;
+            clippingShape = null;
             isUpToDate = false;
             canvas.Refresh();
         }
+
+        private void cleanClipButton_Click(object sender, EventArgs e) {
+            clippingShape = null;
+        }
+
 
         private void saveToolStripMenuItem_Click(object sender, EventArgs e) {
             //show the dialog, get the correct path:
@@ -487,11 +838,20 @@ namespace Paint_It__Black {
             }
         }
 
-        private void colorPickerButton_Click(object sender, EventArgs e) {
+        private void lineColorPickerButton_Click(object sender, EventArgs e) {
             DialogResult result = colorDialog.ShowDialog();
             if(result == DialogResult.OK)
-                colorPickerButton.BackColor = colorDialog.Color;
+                lineColorPickerButton.BackColor = colorDialog.Color;
+        }
+        private void fillColorPickerButton_Click(object sender, EventArgs e) {
+            DialogResult result = colorDialog.ShowDialog();
+            if(result == DialogResult.OK)
+                fillColorPickerButton.BackColor = colorDialog.Color;
         }
 
+        private void refreshButton_Click(object sender, EventArgs e) {
+            isUpToDate = false;
+            canvas.Refresh();
+        }
     }
 }
